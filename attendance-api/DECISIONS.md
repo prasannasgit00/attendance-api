@@ -1,7 +1,23 @@
-# DECISIONS.md
+1. **Indexes.** For employees I made a unique index on emp_code, one on
+   (department, emp_code) and one on joined_on. For attendance_logs I made a
+   unique index on (emp_code, date) and one on (date descending, emp_code). The
+   unique ones stop duplicates. The others keep lists and monthly reports fast.
+   I did not index status. It has only five values, so it would not narrow the
+   search much and would slow down writes.
 
-1. **Indexes.** `employees`: unique `emp_code` (the uniqueness guarantee and the join key), `(department, emp_code)` for filtered lists and the trend, `(joined_on)` for the headcount scan when no department is given. `attendance_logs`: unique `(emp_code, date)` (one record per day, per-employee queries, lookups) and `(date desc, emp_code)` (the list sort and month scans). I rejected an index on `status`: it has five values, so it filters too little to pay for its write cost.
-2. **Punch-in race.** Both requests compute the same date and call `insert_one`. The unique index lets one succeed; the other gets `DuplicateKeyError`, which I turn into 409. There is no read before the write.
-3. **Ties.** The pipeline ranks with `$rank`, which gives 1, 2, 2, 4, and only then keeps `rank <= limit`. Both tied people come back, so the list can be longer than `limit`.
-4. **Headcount.** The summary starts from `employees` (joined by month end) and `$lookup`s their logs, so someone with no logs still produces a row that is counted.
-5. **At 100x.** I would stop aggregating raw logs per request and keep a daily rollup per department, updated at punch time.
+2. **Punch-in race.** Both requests work out the same date and try to insert the
+   same record. The unique index lets only one insert succeed. The other one
+   gets a duplicate-key error and I return 409. I never check first and then
+   insert, because two requests could both pass the check.
+
+3. **Ties.** I rank everyone first (1, 2, 2, 4) and only then keep rank <= limit.
+   So if two people tie at the cutoff, both are returned, and the list can be
+   longer than the limit.
+
+4. **Headcount.** The department summary starts from the employees collection
+   and then looks up their logs. So an employee with no logs still shows up and
+   is counted.
+
+5. **At 100x data.** I would stop calculating from the raw logs on every request.
+   I would keep a daily summary per department, updated when someone punches in
+   or out, and read the reports from that.
