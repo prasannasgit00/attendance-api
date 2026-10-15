@@ -24,7 +24,24 @@ Indexes are created at startup (idempotently). `/docs` shows the interactive API
 - Concurrency relies on the database: unique indexes for punch-in and employee creation, conditional updates for punch-out and PATCH.
 - See `DECISIONS.md` for index and design choices, and `REVIEW.md` for the starter's defects.
 
-## Known gaps
-- No automated test suite is included.
-- Not verified at the 100,000-record scale.
-- The trend pipeline needs MongoDB 6.0+ (`$densify`, `$setWindowFields`, `$documents`).
+## Testing
+
+Tested manually against a MongoDB Atlas free cluster (M0), using the nine sample
+documents from the kit loaded with `sample_seed.py`. I called the endpoints
+through the Swagger page at `/docs`.
+
+Checked and working:
+- `GET /health` returned `{"status":"ok"}`
+- `GET /employees` and `GET /attendance` returned the sample data
+- `GET /analytics/employees/{emp_code}/monthly` for EMP0001, 2026-07
+- `GET /analytics/departments/summary` for 2026-07
+- `GET /analytics/leaderboard/late` for 2026-07
+- `GET /analytics/departments/{department}/trend` for Sales, 2026-07-01 to 2026-07-14
+- `GET /admin/explain/department_trend`
+- `POST /employees` with invalid input returns 422 (an impossible date was rejected)
+
+
+## AI assistance
+
+I used an AI assistant (Claude) to help write and review the code, and I tested
+and checked the result myself.
